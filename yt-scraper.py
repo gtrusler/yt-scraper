@@ -14,7 +14,7 @@ def check_dependencies():
             sys.exit(1)
 
 # Constants
-YOUTUBE_CHANNEL_URL = 'YOUR_YOUTUBE_CHANNEL_URL'
+YOUTUBE_CHANNEL_URL = os.getenv('YOUTUBE_CHANNEL_URL', 'YOUR_YOUTUBE_CHANNEL_URL')
 API_KEY_FILE = 'youtube_api_key.txt'
 
 def get_youtube_api_key():
@@ -86,6 +86,9 @@ def save_video_info(channel_name, video_info, transcript):
 def main():
     try:
         check_dependencies()
+        if YOUTUBE_CHANNEL_URL == 'YOUR_YOUTUBE_CHANNEL_URL':
+            YOUTUBE_CHANNEL_URL = input("Enter your YouTube channel URL: ").strip()
+        
         YOUTUBE_API_KEY = get_youtube_api_key()
         youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
         channel_id = get_channel_id(YOUTUBE_CHANNEL_URL)
