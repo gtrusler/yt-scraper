@@ -6,8 +6,18 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 # Constants
-YOUTUBE_API_KEY = 'YOUR_YOUTUBE_API_KEY'
 YOUTUBE_CHANNEL_URL = 'YOUR_YOUTUBE_CHANNEL_URL'
+API_KEY_FILE = 'youtube_api_key.txt'
+
+def get_youtube_api_key():
+    if os.path.exists(API_KEY_FILE):
+        with open(API_KEY_FILE, 'r') as file:
+            return file.read().strip()
+    else:
+        api_key = input("Enter your YouTube API key: ").strip()
+        with open(API_KEY_FILE, 'w') as file:
+            file.write(api_key)
+        return api_key
 
 def get_channel_id(channel_url):
     response = requests.get(channel_url)
@@ -67,6 +77,7 @@ def save_video_info(channel_name, video_info, transcript):
 
 def main():
     try:
+        YOUTUBE_API_KEY = get_youtube_api_key()
         youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
         channel_id = get_channel_id(YOUTUBE_CHANNEL_URL)
         
@@ -81,7 +92,9 @@ def main():
         
         channel_name = YOUTUBE_CHANNEL_URL.split('/')[-1]
         
-        for video_id in video_ids:
+        print(f"Found {len(video_ids)} videos in the channel.")
+        for idx, video_id in enumerate(video_ids, start=1):
+            print(f"Processing video {idx}/{len(video_ids)}...")
             video_info = get_video_details(youtube, video_id)
             if video_info:
                 transcript = get_video_transcript(video_id)
