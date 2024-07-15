@@ -97,14 +97,35 @@ def main():
         youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
         channel_id = get_channel_id(YOUTUBE_CHANNEL_URL)
         
-        request = youtube.search().list(
-            part="id",
-            channelId=channel_id,
-            maxResults=50
+        # Get the total number of videos in the channel
+        channel_request = youtube.channels().list(
+            part="statistics",
+            id=channel_id
         )
-        response = request.execute()
+        channel_response = channel_request.execute()
+        video_count = int(channel_response['items'][0]['statistics']['videoCount'])
         
-        video_ids = [item['id']['videoId'] for item in response['items'] if item['id']['kind'] == 'youtube#video']
+        print(f"The channel has {video_count} videos.")
+        confirm = input("Do you want to proceed with processing these videos? (yes/no): ").strip().lower()
+        if confirm != 'yes':
+            print("Operation cancelled by the user.")
+            return
+        
+        # Fetch video IDs
+        video_ids = []
+        next_page_token = None
+        while True:
+            request = youtube.search().list(
+                part="id",
+                channelId=channel_id,
+                maxResults=50,
+                pageToken=next_page_token
+            )
+            response = request.execute()
+            video_ids.extend([item['id']['videoId'] for item in response['items'] if item['id']['kind'] == 'youtube#video'])
+            next_page_token = response.get('nextPageToken')
+            if not next_page_token:
+                break
         
         channel_name = YOUTUBE_CHANNEL_URL.split('/')[-1]
         
