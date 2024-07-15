@@ -1,9 +1,17 @@
 import os
+import sys
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+
+def check_dependencies():
+    required_modules = ['requests', 'bs4', 'googleapiclient']
+    for module in required_modules:
+        if module not in sys.modules:
+            print(f"Error: {module} is not installed.")
+            sys.exit(1)
 
 # Constants
 YOUTUBE_CHANNEL_URL = 'YOUR_YOUTUBE_CHANNEL_URL'
@@ -77,6 +85,7 @@ def save_video_info(channel_name, video_info, transcript):
 
 def main():
     try:
+        check_dependencies()
         YOUTUBE_API_KEY = get_youtube_api_key()
         youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
         channel_id = get_channel_id(YOUTUBE_CHANNEL_URL)
