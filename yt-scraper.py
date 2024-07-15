@@ -55,7 +55,9 @@ def get_video_details(youtube, video_id):
     if not response['items']:
         return None
     video_info = response['items'][0]['snippet']
+    video_info = response['items'][0]['snippet']
     return {
+        'author': video_info['channelTitle'],
         'title': video_info['title'],
         'published_at': video_info['publishedAt'],
         'description': video_info['description'],
