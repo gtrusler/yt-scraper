@@ -114,7 +114,7 @@ def main():
         
         print(f"The channel has {video_count} videos.")
         confirm = input("Do you want to proceed with processing these videos? (yes/no): ").strip().lower()
-        if confirm != 'yes':
+        if confirm not in ['yes', 'y']:
             print("Operation cancelled by the user.")
             return
         
