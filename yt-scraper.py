@@ -27,15 +27,22 @@ def get_youtube_api_key():
             file.write(api_key)
         return api_key
 
-def get_channel_id(channel_url):
-    response = requests.get(channel_url)
-    if response.status_code != 200:
-        raise ValueError("Invalid YouTube channel URL or network issue.")
-    soup = BeautifulSoup(response.text, 'html.parser')
-    channel_meta = soup.find('meta', itemprop='channelId')
-    if not channel_meta:
-        raise ValueError("Could not find channel ID in the provided URL.")
-    channel_id = channel_meta['content']
+def get_channel_id(youtube, channel_url):
+    # Extract the channel handle from the URL
+    if '@' not in channel_url:
+        raise ValueError("Invalid YouTube channel URL format.")
+    channel_handle = channel_url.split('@')[1].split('/')[0]
+    
+    # Use the YouTube API to retrieve the channel ID
+    request = youtube.search().list(
+        part="snippet",
+        q=channel_handle,
+        type="channel"
+    )
+    response = request.execute()
+    if not response['items']:
+        raise ValueError("Could not find channel ID using the provided handle.")
+    channel_id = response['items'][0]['snippet']['channelId']
     return channel_id
 
 def get_video_details(youtube, video_id):
@@ -95,7 +102,7 @@ def main():
         
         YOUTUBE_API_KEY = get_youtube_api_key()
         youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
-        channel_id = get_channel_id(YOUTUBE_CHANNEL_URL)
+        channel_id = get_channel_id(youtube, YOUTUBE_CHANNEL_URL)
         
         # Get the total number of videos in the channel
         channel_request = youtube.channels().list(
