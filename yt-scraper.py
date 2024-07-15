@@ -32,7 +32,10 @@ def get_channel_id(channel_url):
     if response.status_code != 200:
         raise ValueError("Invalid YouTube channel URL or network issue.")
     soup = BeautifulSoup(response.text, 'html.parser')
-    channel_id = soup.find('meta', itemprop='channelId')['content']
+    channel_meta = soup.find('meta', itemprop='channelId')
+    if not channel_meta:
+        raise ValueError("Could not find channel ID in the provided URL.")
+    channel_id = channel_meta['content']
     return channel_id
 
 def get_video_details(youtube, video_id):
