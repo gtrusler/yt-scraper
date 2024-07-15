@@ -16,7 +16,7 @@ def check_dependencies():
 
 # Constants
 YOUTUBE_CHANNEL_URL = os.getenv('YOUTUBE_CHANNEL_URL', 'YOUR_YOUTUBE_CHANNEL_URL')
-API_KEY_FILE = 'youtube_api_key.txt'
+API_KEY_FILE = '.yt_api_key'
 
 def get_youtube_api_key():
     if os.path.exists(API_KEY_FILE):
