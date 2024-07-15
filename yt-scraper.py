@@ -86,6 +86,7 @@ def save_video_info(channel_name, video_info, transcript):
 def main():
     try:
         check_dependencies()
+        global YOUTUBE_CHANNEL_URL
         if YOUTUBE_CHANNEL_URL == 'YOUR_YOUTUBE_CHANNEL_URL':
             YOUTUBE_CHANNEL_URL = input("Enter your YouTube channel URL: ").strip()
         
