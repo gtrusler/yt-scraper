@@ -83,10 +83,11 @@ def save_video_info(channel_name, video_info, transcript):
     safe_title = "".join([c for c in title if c.isalpha() or c.isdigit() or c==' ']).rstrip()
     filename = f"{date_str} {safe_title}.txt"
     
-    if not os.path.exists(channel_name):
-        os.makedirs(channel_name)
+    downloads_path = os.path.join(os.path.expanduser("~"), "Downloads", channel_name)
+    if not os.path.exists(downloads_path):
+        os.makedirs(downloads_path)
     
-    with open(os.path.join(channel_name, filename), 'w', encoding='utf-8') as file:
+    with open(os.path.join(downloads_path, filename), 'w', encoding='utf-8') as file:
         file.write(f"Title: {title}\n")
         file.write(f"Published At: {published_at}\n")
         file.write(f"URL: {video_url}\n")
