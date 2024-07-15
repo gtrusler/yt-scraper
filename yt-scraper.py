@@ -3,11 +3,12 @@ import sys
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
+from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 def check_dependencies():
-    required_modules = ['requests', 'bs4', 'googleapiclient']
+    required_modules = ['requests', 'bs4', 'googleapiclient', 'youtube_transcript_api']
     for module in required_modules:
         if module not in sys.modules:
             print(f"Error: {module} is not installed.")
@@ -63,14 +64,10 @@ def get_video_details(youtube, video_id):
 
 def get_video_transcript(video_id):
     try:
-        transcript_url = f"https://www.youtube.com/api/timedtext?lang=en&v={video_id}"
-        response = requests.get(transcript_url)
-        if response.status_code != 200 or 'transcript' not in response.text:
-            return "Transcript not available."
-        soup = BeautifulSoup(response.text, 'html.parser')
-        transcript = ' '.join([text.text for text in soup.find_all('text')])
+        transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+        transcript = ' '.join([entry['text'] for entry in transcript_list])
         return transcript
-    except Exception as e:
+    except (TranscriptsDisabled, NoTranscriptFound):
         return "Transcript not available."
 
 def save_video_info(channel_name, video_info, transcript):
