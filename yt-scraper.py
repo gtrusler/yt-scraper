@@ -46,7 +46,22 @@ def get_channel_id(youtube, channel_url):
     channel_id = response['items'][0]['snippet']['channelId']
     return channel_id
 
-def get_playlist_details(youtube, playlist_id):
+def get_playlist_video_ids(youtube, playlist_id):
+    video_ids = []
+    next_page_token = None
+    while True:
+        request = youtube.playlistItems().list(
+            part="contentDetails",
+            playlistId=playlist_id,
+            maxResults=50,
+            pageToken=next_page_token
+        )
+        response = request.execute()
+        video_ids.extend([item['contentDetails']['videoId'] for item in response['items']])
+        next_page_token = response.get('nextPageToken')
+        if not next_page_token:
+            break
+    return video_ids
     request = youtube.playlists().list(
         part="snippet",
         id=playlist_id
