@@ -45,6 +45,8 @@ def get_channel_id(youtube, channel_url):
         raise ValueError("Could not find channel ID using the provided handle.")
     channel_id = response['items'][0]['snippet']['channelId']
     return channel_id
+
+def get_playlist_details(youtube, playlist_id):
     request = youtube.playlists().list(
         part="snippet",
         id=playlist_id
@@ -57,8 +59,6 @@ def get_channel_id(youtube, channel_url):
         'title': playlist_info['title'],
         'description': playlist_info['description']
     }
-
-def get_playlist_video_ids(youtube, playlist_id):
     video_ids = []
     next_page_token = None
     while True:
