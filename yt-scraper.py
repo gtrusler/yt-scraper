@@ -28,7 +28,36 @@ def get_youtube_api_key():
             file.write(api_key)
         return api_key
 
-def get_channel_id(youtube, channel_url):
+def get_playlist_details(youtube, playlist_id):
+    request = youtube.playlists().list(
+        part="snippet",
+        id=playlist_id
+    )
+    response = request.execute()
+    if not response['items']:
+        raise ValueError("Could not find playlist using the provided ID.")
+    playlist_info = response['items'][0]['snippet']
+    return {
+        'title': playlist_info['title'],
+        'description': playlist_info['description']
+    }
+
+def get_playlist_video_ids(youtube, playlist_id):
+    video_ids = []
+    next_page_token = None
+    while True:
+        request = youtube.playlistItems().list(
+            part="contentDetails",
+            playlistId=playlist_id,
+            maxResults=50,
+            pageToken=next_page_token
+        )
+        response = request.execute()
+        video_ids.extend([item['contentDetails']['videoId'] for item in response['items']])
+        next_page_token = response.get('nextPageToken')
+        if not next_page_token:
+            break
+    return video_ids
     # Extract the channel handle from the URL
     if '@' not in channel_url:
         raise ValueError("Invalid YouTube channel URL format.")
@@ -102,48 +131,59 @@ def main():
         
         YOUTUBE_API_KEY = get_youtube_api_key()
         youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
-        channel_id = get_channel_id(youtube, YOUTUBE_CHANNEL_URL)
-        
-        # Get the total number of videos in the channel
-        channel_request = youtube.channels().list(
-            part="statistics",
-            id=channel_id
-        )
-        channel_response = channel_request.execute()
-        video_count = int(channel_response['items'][0]['statistics']['videoCount'])
-        
-        print(f"The channel has {video_count} videos.")
+        if 'playlist' in YOUTUBE_CHANNEL_URL:
+            playlist_id = YOUTUBE_CHANNEL_URL.split('list=')[1]
+            playlist_details = get_playlist_details(youtube, playlist_id)
+            video_ids = get_playlist_video_ids(youtube, playlist_id)
+            folder_name = playlist_details['title']
+            print(f"Found {len(video_ids)} videos in the playlist '{folder_name}'.")
+        else:
+            channel_id = get_channel_id(youtube, YOUTUBE_CHANNEL_URL)
+            
+            # Get the total number of videos in the channel
+            channel_request = youtube.channels().list(
+                part="statistics",
+                id=channel_id
+            )
+            channel_response = channel_request.execute()
+            video_count = int(channel_response['items'][0]['statistics']['videoCount'])
+            
+            print(f"The channel has {video_count} videos.")
+            confirm = input("Do you want to proceed with processing these videos? (yes/no): ").strip().lower()
+            if confirm not in ['yes', 'y']:
+                print("Operation cancelled by the user.")
+                return
+            
+            # Fetch video IDs
+            video_ids = []
+            next_page_token = None
+            while True:
+                request = youtube.search().list(
+                    part="id",
+                    channelId=channel_id,
+                    maxResults=50,
+                    pageToken=next_page_token
+                )
+                response = request.execute()
+                video_ids.extend([item['id']['videoId'] for item in response['items'] if item['id']['kind'] == 'youtube#video'])
+                next_page_token = response.get('nextPageToken')
+                if not next_page_token:
+                    break
+            
+            folder_name = YOUTUBE_CHANNEL_URL.split('/')[-1]
+            
+            print(f"Found {len(video_ids)} videos in the channel.")
         confirm = input("Do you want to proceed with processing these videos? (yes/no): ").strip().lower()
         if confirm not in ['yes', 'y']:
             print("Operation cancelled by the user.")
             return
-        
-        # Fetch video IDs
-        video_ids = []
-        next_page_token = None
-        while True:
-            request = youtube.search().list(
-                part="id",
-                channelId=channel_id,
-                maxResults=50,
-                pageToken=next_page_token
-            )
-            response = request.execute()
-            video_ids.extend([item['id']['videoId'] for item in response['items'] if item['id']['kind'] == 'youtube#video'])
-            next_page_token = response.get('nextPageToken')
-            if not next_page_token:
-                break
-        
-        channel_name = YOUTUBE_CHANNEL_URL.split('/')[-1]
-        
-        print(f"Found {len(video_ids)} videos in the channel.")
+
         for idx, video_id in enumerate(video_ids, start=1):
             print(f"Processing video {idx}/{len(video_ids)}...")
             video_info = get_video_details(youtube, video_id)
             if video_info:
                 transcript = get_video_transcript(video_id)
-                save_video_info(channel_name, video_info, transcript)
-                
+                save_video_info(folder_name, video_info, transcript)
     except HttpError as e:
         print(f"An HTTP error occurred: {e}")
     except ValueError as e:
