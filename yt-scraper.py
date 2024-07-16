@@ -1,3 +1,5 @@
+__version__ = "1.1"
+
 import os
 import sys
 import requests
@@ -14,27 +16,21 @@ def check_dependencies():
             print(f"Error: {module} is not installed.")
             sys.exit(1)
 
-# Constants
-YOUTUBE_CHANNEL_URL = os.getenv('YOUTUBE_CHANNEL_URL', 'YOUR_YOUTUBE_CHANNEL_URL')
-API_KEY_FILE = '.yt_api_key'
-
 def get_youtube_api_key():
-    if os.path.exists(API_KEY_FILE):
-        with open(API_KEY_FILE, 'r') as file:
+    api_key_file = '.yt_api_key'
+    if os.path.exists(api_key_file):
+        with open(api_key_file, 'r') as file:
             return file.read().strip()
     else:
         api_key = input("Enter your YouTube API key: ").strip()
-        with open(API_KEY_FILE, 'w') as file:
+        with open(api_key_file, 'w') as file:
             file.write(api_key)
         return api_key
 
 def get_channel_id(youtube, channel_url):
-    # Extract the channel handle from the URL
     if '@' not in channel_url:
         raise ValueError("Invalid YouTube channel URL format.")
     channel_handle = channel_url.split('@')[1].split('/')[0]
-    
-    # Use the YouTube API to retrieve the channel ID
     request = youtube.search().list(
         part="snippet",
         q=channel_handle,
@@ -46,34 +42,13 @@ def get_channel_id(youtube, channel_url):
     channel_id = response['items'][0]['snippet']['channelId']
     return channel_id
 
+def get_playlist_id(playlist_url):
+    if 'list=' not in playlist_url:
+        raise ValueError("Invalid YouTube playlist URL format.")
+    playlist_id = playlist_url.split('list=')[1]
+    return playlist_id
+
 def get_playlist_video_ids(youtube, playlist_id):
-    video_ids = []
-    next_page_token = None
-    while True:
-        request = youtube.playlistItems().list(
-            part="contentDetails",
-            playlistId=playlist_id,
-            maxResults=50,
-            pageToken=next_page_token
-        )
-        response = request.execute()
-        video_ids.extend([item['contentDetails']['videoId'] for item in response['items']])
-        next_page_token = response.get('nextPageToken')
-        if not next_page_token:
-            break
-    return video_ids
-    request = youtube.playlists().list(
-        part="snippet",
-        id=playlist_id
-    )
-    response = request.execute()
-    if not response['items']:
-        raise ValueError("Could not find playlist using the provided ID.")
-    playlist_info = response['items'][0]['snippet']
-    return {
-        'title': playlist_info['title'],
-        'description': playlist_info['description']
-    }
     video_ids = []
     next_page_token = None
     while True:
@@ -99,7 +74,6 @@ def get_video_details(youtube, video_id):
     if not response['items']:
         return None
     video_info = response['items'][0]['snippet']
-    video_info = response['items'][0]['snippet']
     return {
         'author': video_info['channelTitle'],
         'title': video_info['title'],
@@ -116,7 +90,7 @@ def get_video_transcript(video_id):
     except (TranscriptsDisabled, NoTranscriptFound):
         return "Transcript not available."
 
-def save_video_info(channel_name, video_info, transcript):
+def save_video_info(folder_name, video_info, transcript):
     title = video_info['title']
     published_at = video_info['published_at']
     video_url = video_info['url']
@@ -126,7 +100,7 @@ def save_video_info(channel_name, video_info, transcript):
     safe_title = "".join([c for c in title if c.isalpha() or c.isdigit() or c==' ']).rstrip()
     filename = f"{date_str} {safe_title}.txt"
     
-    downloads_path = os.path.join(os.path.expanduser("~"), "Downloads", channel_name)
+    downloads_path = os.path.join(os.path.expanduser("~"), "Downloads", folder_name)
     if not os.path.exists(downloads_path):
         os.makedirs(downloads_path)
     
@@ -140,20 +114,18 @@ def save_video_info(channel_name, video_info, transcript):
 def main():
     try:
         check_dependencies()
-        global YOUTUBE_CHANNEL_URL
-        if YOUTUBE_CHANNEL_URL == 'YOUR_YOUTUBE_CHANNEL_URL':
-            YOUTUBE_CHANNEL_URL = input("Enter your YouTube channel URL: ").strip()
+        youtube_api_key = get_youtube_api_key()
+        youtube = build('youtube', 'v3', developerKey=youtube_api_key)
         
-        YOUTUBE_API_KEY = get_youtube_api_key()
-        youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
-        if 'list=' in YOUTUBE_CHANNEL_URL:
-            playlist_id = YOUTUBE_CHANNEL_URL.split('list=')[1]
-            playlist_details = get_playlist_details(youtube, playlist_id)
+        url_input = input("Enter your YouTube channel or playlist URL: ").strip()
+        
+        if 'list=' in url_input:
+            playlist_id = get_playlist_id(url_input)
             video_ids = get_playlist_video_ids(youtube, playlist_id)
-            folder_name = playlist_details['title']
-            print(f"Found {len(video_ids)} videos in the playlist '{folder_name}'.")
+            folder_name = input("Enter a folder name for the playlist: ").strip()
+            print(f"Found {len(video_ids)} videos in the playlist.")
         else:
-            channel_id = get_channel_id(youtube, YOUTUBE_CHANNEL_URL)
+            channel_id = get_channel_id(youtube, url_input)
             
             # Get the total number of videos in the channel
             channel_request = youtube.channels().list(
@@ -185,9 +157,9 @@ def main():
                 if not next_page_token:
                     break
             
-            folder_name = YOUTUBE_CHANNEL_URL.split('/')[-1]
-            
+            folder_name = input("Enter a folder name for the channel: ").strip()
             print(f"Found {len(video_ids)} videos in the channel.")
+        
         confirm = input("Do you want to proceed with processing these videos? (yes/no): ").strip().lower()
         if confirm not in ['yes', 'y']:
             print("Operation cancelled by the user.")
