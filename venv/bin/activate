@@ -1,3 +1,11 @@
+echo "Starting to source venv/bin/activate..."
+echo "Current shell: $SHELL"
+echo "Current PATH: $PATH"
+echo "Current VIRTUAL_ENV before setting: $VIRTUAL_ENV"
+echo "OSTYPE: $OSTYPE"
+echo "PWD: $PWD"
+echo "BASH_SOURCE: ${BASH_SOURCE[0]}"
+echo "BASH_VERSION: $BASH_VERSION"
 # This file must be used with "source bin/activate" *from bash*
 # You cannot run it directly
 
@@ -32,7 +40,7 @@ deactivate () {
     fi
 }
 
-# unset irrelevant variables
+echo "Activating virtual environment..."
 deactivate nondestructive
 
 # on Windows, a path can contain colons and backslashes and has to be converted:
@@ -67,4 +75,8 @@ fi
 
 # Call hash to forget past commands. Without forgetting
 # past commands the $PATH changes we made may not be respected
+echo "Virtual environment activated."
+echo "VIRTUAL_ENV is set to: $VIRTUAL_ENV"
+echo "Current PATH after setting: $PATH"
+echo "Current VIRTUAL_ENV after setting: $VIRTUAL_ENV"
 hash -r 2> /dev/null

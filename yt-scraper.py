@@ -1,20 +1,42 @@
-__version__ = "1.1"
+#!/usr/bin/env python3
 
 import os
 import sys
-import requests
-from bs4 import BeautifulSoup
+import subprocess
+import logging
 from datetime import datetime
-from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 
-def check_dependencies():
-    required_modules = ['requests', 'bs4', 'googleapiclient', 'youtube_transcript_api']
-    for module in required_modules:
-        if module not in sys.modules:
-            print(f"Error: {module} is not installed.")
+__version__ = "1.2"
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def verify_virtualenv():
+    logging.info(f"VIRTUAL_ENV before sourcing: {os.getenv('VIRTUAL_ENV')}")
+    if not os.getenv('VIRTUAL_ENV'):
+        logging.info("Virtual environment is not activated. Attempting to activate it...")
+        activate_script = os.path.join(os.path.dirname(__file__), 'venv', 'bin', 'activate')
+        if os.path.exists(activate_script):
+            command = f"source {activate_script} && exec {sys.executable} {' '.join(sys.argv)}"
+            subprocess.run(command, shell=True, executable='/bin/zsh')
+            sys.exit(0)
+        else:
+            logging.error(f"Activate script not found at {activate_script}")
             sys.exit(1)
+    logging.info("Verifying virtual environment...")
+
+def install_missing_modules(required_modules):
+    logging.info("Checking dependencies...")
+    for module in required_modules:
+        try:
+            __import__(module)
+        except ImportError:
+            logging.info(f"Installing missing module: {module}")
+            try:
+                subprocess.check_call([sys.executable, "-m", "pip", "install", module])
+                logging.info(f"Successfully installed {module}")
+            except subprocess.CalledProcessError as e:
+                logging.error(f"Failed to install {module}: {e}")
+                sys.exit(1)
 
 def get_youtube_api_key():
     api_key_file = '.yt_api_key'
@@ -31,22 +53,16 @@ def get_channel_id(youtube, channel_url):
     if '@' not in channel_url:
         raise ValueError("Invalid YouTube channel URL format.")
     channel_handle = channel_url.split('@')[1].split('/')[0]
-    request = youtube.search().list(
-        part="snippet",
-        q=channel_handle,
-        type="channel"
-    )
+    request = youtube.search().list(part="snippet", q=channel_handle, type="channel")
     response = request.execute()
     if not response['items']:
         raise ValueError("Could not find channel ID using the provided handle.")
-    channel_id = response['items'][0]['snippet']['channelId']
-    return channel_id
+    return response['items'][0]['snippet']['channelId']
 
 def get_playlist_id(playlist_url):
     if 'list=' not in playlist_url:
         raise ValueError("Invalid YouTube playlist URL format.")
-    playlist_id = playlist_url.split('list=')[1]
-    return playlist_id
+    return playlist_url.split('list=')[1]
 
 def get_playlist_video_ids(youtube, playlist_id):
     video_ids = []
@@ -66,10 +82,7 @@ def get_playlist_video_ids(youtube, playlist_id):
     return video_ids
 
 def get_video_details(youtube, video_id):
-    request = youtube.videos().list(
-        part="snippet,contentDetails",
-        id=video_id
-    )
+    request = youtube.videos().list(part="snippet,contentDetails", id=video_id)
     response = request.execute()
     if not response['items']:
         return None
@@ -84,11 +97,15 @@ def get_video_details(youtube, video_id):
 
 def get_video_transcript(video_id):
     try:
+        from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
         transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
-        transcript = ' '.join([entry['text'] for entry in transcript_list])
-        return transcript
+        return ' '.join([entry['text'] for entry in transcript_list])
     except (TranscriptsDisabled, NoTranscriptFound):
+        logging.warning(f"Transcript not available for video {video_id}")
         return "Transcript not available."
+    except Exception as e:
+        logging.error(f"Error getting transcript for video {video_id}: {str(e)}")
+        return f"Error getting transcript: {str(e)}"
 
 def save_video_info(folder_name, video_info, transcript):
     title = video_info['title']
@@ -97,7 +114,7 @@ def save_video_info(folder_name, video_info, transcript):
     description = video_info['description']
     
     date_str = datetime.strptime(published_at, "%Y-%m-%dT%H:%M:%SZ").strftime("%Y-%m-%d")
-    safe_title = "".join([c for c in title if c.isalpha() or c.isdigit() or c==' ']).rstrip()
+    safe_title = "".join([c for c in title if c.isalpha() or c.isdigit() or c == ' ']).rstrip()
     filename = f"{date_str} {safe_title}.txt"
     
     downloads_path = os.path.join(os.path.expanduser("~"), "Downloads", folder_name)
@@ -112,8 +129,16 @@ def save_video_info(folder_name, video_info, transcript):
         file.write(f"Transcript: {transcript}\n")
 
 def main():
+    logging.info("Starting script...")
+    verify_virtualenv()
+    logging.info("Virtual environment verified.")
+    
+    required_modules = ['requests', 'bs4', 'googleapiclient', 'youtube_transcript_api']
+    install_missing_modules(required_modules)
+
     try:
-        check_dependencies()
+        from googleapiclient.discovery import build
+        from googleapiclient.errors import HttpError
         youtube_api_key = get_youtube_api_key()
         youtube = build('youtube', 'v3', developerKey=youtube_api_key)
         
@@ -123,25 +148,20 @@ def main():
             playlist_id = get_playlist_id(url_input)
             video_ids = get_playlist_video_ids(youtube, playlist_id)
             folder_name = input("Enter a folder name for the playlist: ").strip()
-            print(f"Found {len(video_ids)} videos in the playlist.")
+            logging.info(f"Found {len(video_ids)} videos in the playlist.")
         else:
             channel_id = get_channel_id(youtube, url_input)
             
-            # Get the total number of videos in the channel
-            channel_request = youtube.channels().list(
-                part="statistics",
-                id=channel_id
-            )
+            channel_request = youtube.channels().list(part="statistics", id=channel_id)
             channel_response = channel_request.execute()
             video_count = int(channel_response['items'][0]['statistics']['videoCount'])
             
-            print(f"The channel has {video_count} videos.")
+            logging.info(f"The channel has {video_count} videos.")
             confirm = input("Do you want to proceed with processing these videos? (yes/no): ").strip().lower()
             if confirm not in ['yes', 'y']:
-                print("Operation cancelled by the user.")
+                logging.info("Operation cancelled by the user.")
                 return
             
-            # Fetch video IDs
             video_ids = []
             next_page_token = None
             while True:
@@ -158,25 +178,32 @@ def main():
                     break
             
             folder_name = input("Enter a folder name for the channel: ").strip()
-            print(f"Found {len(video_ids)} videos in the channel.")
+            logging.info(f"Found {len(video_ids)} videos in the channel.")
         
         confirm = input("Do you want to proceed with processing these videos? (yes/no): ").strip().lower()
         if confirm not in ['yes', 'y']:
-            print("Operation cancelled by the user.")
+            logging.info("Operation cancelled by the user.")
             return
 
         for idx, video_id in enumerate(video_ids, start=1):
-            print(f"Processing video {idx}/{len(video_ids)}...")
-            video_info = get_video_details(youtube, video_id)
-            if video_info:
-                transcript = get_video_transcript(video_id)
-                save_video_info(folder_name, video_info, transcript)
+            try:
+                logging.info(f"Processing video {idx}/{len(video_ids)}...")
+                video_info = get_video_details(youtube, video_id)
+                if video_info:
+                    transcript = get_video_transcript(video_id)
+                    save_video_info(folder_name, video_info, transcript)
+                else:
+                    logging.warning(f"Could not get details for video {video_id}")
+            except Exception as e:
+                logging.error(f"Error processing video {video_id}: {str(e)}")
+                continue  # Continue with the next video
+
     except HttpError as e:
-        print(f"An HTTP error occurred: {e}")
+        logging.error(f"An HTTP error occurred: {e}")
     except ValueError as e:
-        print(f"Value error: {e}")
+        logging.error(f"Value error: {e}")
     except Exception as e:
-        print(f"An error occurred: {e}")
+        logging.error(f"An error occurred: {e}")
 
 if __name__ == "__main__":
     main()
